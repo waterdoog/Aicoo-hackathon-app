@@ -85,13 +85,52 @@ function showError(error) {
   showToast(error.message || String(error));
 }
 
+// PKCE Helpers
+function generateRandomString(length = 48) {
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let text = '';
+  for (let i = 0; i < length; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}
+
+async function sha256(plain) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(plain);
+  return window.crypto.subtle.digest('SHA-256', data);
+}
+
+function base64urlencode(a) {
+  let str = "";
+  const bytes = new Uint8Array(a);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    str += String.fromCharCode(bytes[i]);
+  }
+  return btoa(str)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+async function generateChallenge(verifier) {
+  const hashed = await sha256(verifier);
+  return base64urlencode(hashed);
+}
+
 async function api(path, options = {}) {
+  const token = localStorage.getItem("aicoo_token");
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const response = await fetch(path, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
   });
   const data = await response.json();
   if (!response.ok || data.ok === false) {
@@ -103,16 +142,93 @@ async function api(path, options = {}) {
 async function connectAicoo() {
   setBusy(true);
   try {
-    await api("/api/aicoo/status");
-    state.connected = true;
-    showToast("Connected to Aicoo");
-    await loadEvents();
+    const config = await api("/api/auth/config");
+    if (!config.clientId) {
+      throw new Error("OAuth Client ID not configured on the server.");
+    }
+
+    const stateVal = generateRandomString(16);
+    const verifier = generateRandomString(48);
+    const challenge = await generateChallenge(verifier);
+
+    sessionStorage.setItem("oauth_state", stateVal);
+    sessionStorage.setItem("oauth_verifier", verifier);
+
+    const authUrl = `${config.issuer || "https://www.aicoo.io"}/api/auth/oauth2/authorize?` +
+      `response_type=code&` +
+      `client_id=${encodeURIComponent(config.clientId)}&` +
+      `redirect_uri=${encodeURIComponent(config.redirectUri)}&` +
+      `scope=${encodeURIComponent("openid profile email offline_access")}&` +
+      `state=${encodeURIComponent(stateVal)}&` +
+      `code_challenge=${encodeURIComponent(challenge)}&` +
+      `code_challenge_method=S256`;
+
+    window.location.href = authUrl;
+  } catch (error) {
+    showError(error);
+    setBusy(false);
+  }
+}
+
+async function handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const urlState = params.get("state");
+  if (!code) return;
+
+  setBusy(true);
+  try {
+    const savedState = sessionStorage.getItem("oauth_state");
+    const codeVerifier = sessionStorage.getItem("oauth_verifier");
+
+    sessionStorage.removeItem("oauth_state");
+    sessionStorage.removeItem("oauth_verifier");
+
+    if (!urlState || urlState !== savedState) {
+      throw new Error("Invalid state parameter (CSRF protection failed)");
+    }
+    if (!codeVerifier) {
+      throw new Error("Missing code verifier in session cache");
+    }
+
+    const data = await api("/api/auth/token", {
+      method: "POST",
+      body: JSON.stringify({ code, codeVerifier })
+    });
+
+    if (data.ok && data.accessToken) {
+      localStorage.setItem("aicoo_token", data.accessToken);
+      localStorage.setItem("aicoo_user", JSON.stringify(data.user || {}));
+      
+      state.connected = true;
+      state.user = data.user;
+
+      showToast(`Connected as ${data.user.name || "Aicoo User"}`);
+    } else {
+      throw new Error(data.error || "Token exchange failed");
+    }
   } catch (error) {
     showError(error);
   } finally {
     setBusy(false);
+    window.history.replaceState({}, document.title, window.location.pathname);
     renderShell();
+    await loadEvents();
   }
+}
+
+function signoutAicoo() {
+  localStorage.removeItem("aicoo_token");
+  localStorage.removeItem("aicoo_user");
+  state.connected = false;
+  state.user = null;
+  state.events = [];
+  state.participants = [];
+  state.projects = [];
+  state.activeEvent = null;
+  state.currentView = "events";
+  showToast("Disconnected from Aicoo");
+  renderShell();
 }
 
 async function loadEvents() {
@@ -120,8 +236,13 @@ async function loadEvents() {
   try {
     const data = await api("/api/events");
     state.events = data.events || [];
-    state.connected = true;
   } catch (error) {
+    if (error.message.includes("Unauthorized") || error.message.includes("401")) {
+      localStorage.removeItem("aicoo_token");
+      localStorage.removeItem("aicoo_user");
+      state.connected = false;
+      state.user = null;
+    }
     showError(error);
   } finally {
     setBusy(false);
@@ -176,9 +297,28 @@ function setPanel(name) {
 
 function renderShell() {
   const event = state.activeEvent;
-  els.authButton.textContent = state.connected ? "Aicoo Connected" : "Connect Aicoo";
-  els.sidebarUserName.textContent = state.connected ? "Aicoo Connected" : "Connect Aicoo";
-  els.sidebarUserHandle.textContent = state.connected ? "Server API online" : "Server API required";
+  const profileButton = document.querySelector(".profile-button");
+  if (state.connected && state.user) {
+    els.authButton.textContent = "Disconnect Aicoo";
+    els.authButton.dataset.action = "signout";
+    if (profileButton) profileButton.dataset.action = "signout";
+    els.sidebarUserName.textContent = state.user.name || "Connected User";
+    els.sidebarUserHandle.textContent = state.user.email || "Connected";
+    const profileImg = document.querySelector(".profile-button img");
+    if (profileImg) {
+      profileImg.src = state.user.picture || avatar(state.user.name || "Aicoo");
+    }
+  } else {
+    els.authButton.textContent = "Sign in with Aicoo";
+    els.authButton.dataset.action = "signin";
+    if (profileButton) profileButton.dataset.action = "signin";
+    els.sidebarUserName.textContent = "Sign in required";
+    els.sidebarUserHandle.textContent = "Aicoo identity";
+    const profileImg = document.querySelector(".profile-button img");
+    if (profileImg) {
+      profileImg.src = "https://api.dicebear.com/9.x/pixel-art/png?seed=Yu";
+    }
+  }
   els.backToEvents.classList.toggle("hidden", state.currentView === "events");
   els.sidebarEventName.textContent = event ? event.name : "Browse events";
 
@@ -419,6 +559,7 @@ function bindEvents() {
     if (action) {
       const type = action.dataset.action;
       if (type === "signin") await connectAicoo();
+      if (type === "signout") signoutAicoo();
       if (type === "back-events") {
         state.currentView = "events";
         state.activeEvent = null;
@@ -547,7 +688,29 @@ function bindEvents() {
   });
 }
 
-applyInviteFromUrl();
-bindEvents();
-renderShell();
-loadEvents();
+async function initApp() {
+  applyInviteFromUrl();
+  bindEvents();
+  
+  const savedToken = localStorage.getItem("aicoo_token");
+  const savedUser = localStorage.getItem("aicoo_user");
+  if (savedToken) {
+    state.connected = true;
+    try {
+      state.user = savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      state.user = null;
+    }
+  }
+  
+  renderShell();
+  
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("code")) {
+    await handleOAuthCallback();
+  } else {
+    await loadEvents();
+  }
+}
+
+initApp();

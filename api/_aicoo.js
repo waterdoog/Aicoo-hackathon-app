@@ -18,6 +18,15 @@ function apiKey() {
   return process.env.PULSE_API_KEY || process.env.AICOO_API_KEY || "";
 }
 
+function getAuthToken(req) {
+  if (!req || !req.headers) return null;
+  const authHeader = req.headers.authorization || req.headers.Authorization || "";
+  if (authHeader.startsWith("Bearer ")) {
+    return authHeader.substring(7);
+  }
+  return null;
+}
+
 function slugify(value) {
   return String(value || "")
     .toLowerCase()
@@ -52,9 +61,10 @@ function extractRecords(payload, marker) {
   return records;
 }
 
-async function aicooFetch(path, options = {}) {
-  const key = apiKey();
-  if (!key) throw new AicooError("Missing PULSE_API_KEY or AICOO_API_KEY on the server.", 503);
+async function aicooFetch(req, path, options = {}) {
+  const token = getAuthToken(req);
+  const key = token || apiKey();
+  if (!key) throw new AicooError("Unauthorized: Missing Aicoo access token.", 401);
 
   const response = await fetch(`${AICOO_BASE_URL}${path}`, {
     ...options,
@@ -102,13 +112,13 @@ function shareUrl(data) {
   return data?.url || data?.shareUrl || data?.link || data?.shareLink || data?.publicUrl || data?.data?.url || "";
 }
 
-async function checkAicooStatus() {
-  await aicooFetch("/init", { method: "POST", body: "{}" });
-  return aicooFetch("/os/status");
+async function checkAicooStatus(req) {
+  await aicooFetch(req, "/init", { method: "POST", body: "{}" });
+  return aicooFetch(req, "/os/status");
 }
 
-async function createFolder(path) {
-  const data = await aicooFetch("/os/folders", {
+async function createFolder(req, path) {
+  const data = await aicooFetch(req, "/os/folders", {
     method: "POST",
     body: JSON.stringify({ path }),
   });
@@ -116,16 +126,16 @@ async function createFolder(path) {
   return { id: firstId(folder?.id, data.folderId, data.id), raw: data };
 }
 
-async function createNote({ title, content, folderId, tags = [] }) {
-  return aicooFetch("/os/notes", {
+async function createNote(req, { title, content, folderId, tags = [] }) {
+  return aicooFetch(req, "/os/notes", {
     method: "POST",
     body: JSON.stringify({ title, content, folderId, tags }),
   });
 }
 
-async function createShare({ label, folderIds, requireSignIn = false }) {
+async function createShare(req, { label, folderIds, requireSignIn = false }) {
   if (!folderIds?.length || folderIds.some((id) => id == null)) return { url: "", raw: null };
-  const data = await aicooFetch("/os/share", {
+  const data = await aicooFetch(req, "/os/share", {
     method: "POST",
     body: JSON.stringify({
       scope: "folders",
@@ -141,23 +151,23 @@ async function createShare({ label, folderIds, requireSignIn = false }) {
   return { url: shareUrl(data), raw: data };
 }
 
-async function grepRecords(marker, folderName) {
+async function grepRecords(req, marker, folderName) {
   const body = { pattern: marker, mode: "literal", contextBefore: 0, contextAfter: 0 };
   if (folderName) body.folderName = folderName;
-  const data = await aicooFetch("/os/notes/grep", { method: "POST", body: JSON.stringify(body) });
+  const data = await aicooFetch(req, "/os/notes/grep", { method: "POST", body: JSON.stringify(body) });
   return extractRecords(data, marker);
 }
 
-async function listEvents() {
-  const events = await grepRecords(MARKERS.event);
+async function listEvents(req) {
+  const events = await grepRecords(req, MARKERS.event);
   return events.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 }
 
-async function createEvent(input) {
+async function createEvent(req, input) {
   const slug = slugify(input.slug || input.name);
   const folderPath = `Aicoo Events/${slug}`;
-  const folder = await createFolder(folderPath);
-  const share = await createShare({
+  const folder = await createFolder(req, folderPath);
+  const share = await createShare(req, {
     label: `${input.name} Event Square`,
     folderIds: [folder.id],
     requireSignIn: input.visibility === "private",
@@ -177,7 +187,7 @@ async function createEvent(input) {
     squareLink: share.url,
     createdAt: new Date().toISOString(),
   };
-  await createNote({
+  await createNote(req, {
     title: `[Aicoo Event] ${event.name}`,
     folderId: folder.id,
     tags: ["aicoo-event", event.visibility, event.type],
@@ -186,14 +196,14 @@ async function createEvent(input) {
   return event;
 }
 
-async function listParticipants(slug) {
-  return grepRecords(MARKERS.participant, slug);
+async function listParticipants(req, slug) {
+  return grepRecords(req, MARKERS.participant, slug);
 }
 
-async function createParticipant(slug, input) {
-  const event = (await listEvents()).find((item) => item.slug === slug);
+async function createParticipant(req, slug, input) {
+  const event = (await listEvents(req)).find((item) => item.slug === slug);
   if (!event) throw new AicooError("Event not found in Aicoo.", 404);
-  const folder = await createFolder(`${event.folderPath}/People/${slugify(input.name)}`);
+  const folder = await createFolder(req, `${event.folderPath}/People/${slugify(input.name)}`);
   const participant = {
     id: `${slug}-${slugify(input.name)}-${Date.now()}`,
     eventSlug: slug,
@@ -209,9 +219,9 @@ async function createParticipant(slug, input) {
     folderId: folder.id,
     createdAt: new Date().toISOString(),
   };
-  const share = await createShare({ label: `${participant.name} · ${event.name}`, folderIds: [folder.id] });
+  const share = await createShare(req, { label: `${participant.name} · ${event.name}`, folderIds: [folder.id] });
   participant.sharedAgentLink = share.url;
-  await createNote({
+  await createNote(req, {
     title: `[Participant] ${participant.name} · ${event.name}`,
     folderId: folder.id,
     tags: ["aicoo-participant", slug],
@@ -231,14 +241,14 @@ async function createParticipant(slug, input) {
   return participant;
 }
 
-async function listProjects(slug) {
-  return grepRecords(MARKERS.project, slug);
+async function listProjects(req, slug) {
+  return grepRecords(req, MARKERS.project, slug);
 }
 
-async function createProject(slug, input) {
-  const event = (await listEvents()).find((item) => item.slug === slug);
+async function createProject(req, slug, input) {
+  const event = (await listEvents(req)).find((item) => item.slug === slug);
   if (!event) throw new AicooError("Event not found in Aicoo.", 404);
-  const folder = await createFolder(`${event.folderPath}/Projects/${slugify(input.projectName)}`);
+  const folder = await createFolder(req, `${event.folderPath}/Projects/${slugify(input.projectName)}`);
   const project = {
     id: `${slug}-${slugify(input.projectName)}-${Date.now()}`,
     eventSlug: slug,
@@ -254,9 +264,9 @@ async function createProject(slug, input) {
     folderId: folder.id,
     createdAt: new Date().toISOString(),
   };
-  const share = await createShare({ label: `${project.projectName} Project Agent · ${event.name}`, folderIds: [folder.id] });
+  const share = await createShare(req, { label: `${project.projectName} Project Agent · ${event.name}`, folderIds: [folder.id] });
   project.sharedProjectAgentLink = share.url;
-  await createNote({
+  await createNote(req, {
     title: `[Project] ${project.projectName} · ${event.name}`,
     folderId: folder.id,
     tags: ["aicoo-project", slug, project.track],

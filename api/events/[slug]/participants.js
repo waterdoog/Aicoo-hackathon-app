@@ -4,12 +4,12 @@ module.exports = async function handler(req, res) {
   const { slug } = req.query;
   try {
     if (req.method === "GET") {
-      const participants = await listParticipants(slug);
+      const participants = await listParticipants(req, slug);
       return send(res, 200, { ok: true, participants });
     }
     if (req.method === "POST") {
       const body = await readBody(req);
-      const participant = await createParticipant(slug, body);
+      const participant = await createParticipant(req, slug, body);
       return send(res, 201, { ok: true, participant });
     }
     return send(res, 405, { ok: false, error: "Method not allowed" });

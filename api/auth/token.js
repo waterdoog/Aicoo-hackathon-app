@@ -9,10 +9,10 @@ module.exports = async function handler(req, res) {
       return send(res, 400, { ok: false, error: "Missing code or codeVerifier" });
     }
 
-    const clientId = process.env.AICOO_CLIENT_ID;
-    const clientSecret = process.env.AICOO_CLIENT_SECRET;
-    const redirectUri = process.env.AICOO_REDIRECT_URI || "http://localhost:3000/";
-    const issuer = process.env.AICOO_ISSUER || "https://www.aicoo.io";
+    const clientId = process.env.AICOO_CLIENT_ID ? process.env.AICOO_CLIENT_ID.trim() : "";
+    const clientSecret = process.env.AICOO_CLIENT_SECRET ? process.env.AICOO_CLIENT_SECRET.trim() : "";
+    const redirectUri = process.env.AICOO_REDIRECT_URI ? process.env.AICOO_REDIRECT_URI.trim() : "http://localhost:3000/";
+    const issuer = process.env.AICOO_ISSUER ? process.env.AICOO_ISSUER.trim() : "https://www.aicoo.io";
 
     if (!clientId || !clientSecret) {
       return send(res, 500, { ok: false, error: "AICOO_CLIENT_ID or AICOO_CLIENT_SECRET not configured on the server." });

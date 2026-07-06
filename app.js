@@ -322,7 +322,10 @@ function renderShell() {
   els.backToEvents.classList.toggle("hidden", state.currentView === "events");
   els.sidebarEventName.textContent = event ? event.name : "Browse events";
 
+  const appShell = document.querySelector(".app-shell");
+
   if (state.currentView === "events") {
+    if (appShell) appShell.classList.add("no-sidebar");
     els.sideNav.innerHTML = `
       <button class="nav-item active" type="button" data-action="back-events" data-allow-during-busy="true">
         <span class="icon">⌂</span><span>Events Square</span>
@@ -342,6 +345,7 @@ function renderShell() {
     return;
   }
 
+  if (appShell) appShell.classList.remove("no-sidebar");
   els.sideNav.innerHTML = `
     <button class="nav-item ${state.activeSection === "people" ? "active" : ""}" type="button" data-section="people" data-allow-during-busy="true">
       <span class="icon">◎</span><span>People</span>

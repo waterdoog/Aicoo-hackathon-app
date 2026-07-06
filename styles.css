@@ -46,17 +46,28 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 12rem minmax(0, 1fr) 22rem;
+  grid-template-columns: 12rem minmax(0, 1fr);
   gap: 1.5rem;
   min-height: 100vh;
   padding: 1rem;
 }
 
-.sidebar,
-.phone-preview {
+.app-shell.no-sidebar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell.no-sidebar .sidebar {
+  display: none;
+}
+
+.sidebar {
   position: sticky;
   top: 1rem;
   height: calc(100vh - 2rem);
+}
+
+.phone-preview {
+  display: none !important;
 }
 
 .sidebar {

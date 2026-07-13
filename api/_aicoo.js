@@ -75,16 +75,25 @@ async function authedFetch(req, url, options = {}) {
   const key = token || apiKey();
   if (!key) throw new AicooError("Unauthorized: Missing Aicoo access token.", 401);
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
-  const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json") ? await response.json() : await response.text();
+  const doFetch = async (authKey) => {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${authKey}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+    const contentType = response.headers.get("content-type") || "";
+    const data = contentType.includes("application/json") ? await response.json() : await response.text();
+    return { response, data };
+  };
+
+  let { response, data } = await doFetch(key);
+  if (!response.ok && token && apiKey() && response.status === 401) {
+    ({ response, data } = await doFetch(apiKey()));
+  }
+
   if (!response.ok) {
     const message = typeof data === "object" && data?.message ? data.message : `Aicoo API request failed: ${response.status}`;
     throw new AicooError(message, response.status, data);
@@ -185,6 +194,47 @@ function linkFromText(text) {
   return match ? match[0].replace(/[),.;]+$/, "") : "";
 }
 
+function labeledUrl(text, labels) {
+  const source = String(text || "");
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}\\s*(?:url|link)?\\s*[:：-]\\s*(https?:\\/\\/\\S+)`, "i");
+    const match = source.match(pattern);
+    if (match) return match[1].replace(/[),.;]+$/, "");
+  }
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}[^\\n]{0,90}?(https?:\\/\\/\\S+)`, "i");
+    const match = source.match(pattern);
+    if (match) return match[1].replace(/[),.;]+$/, "");
+  }
+  return "";
+}
+
+function hasMarker(post, marker) {
+  return Boolean(extractFirstRecordFromText(post.content, marker));
+}
+
+function hasProjectSignal(post) {
+  const text = `${post.title || ""}\n${post.content || ""}`;
+  return (
+    postHasTag(post, "aicoo-project") ||
+    hasMarker(post, MARKERS.project) ||
+    /(^|\n)\s*project\s*name\s*[:：]/i.test(text) ||
+    /(^|\n)\s*(github|demo|live\s+demo|video\s+demo|built\s+with\s+aicoo)\s*[:：]/i.test(text) ||
+    /\b(live\s+demo|video\s+demo|github\s+repo)\b/i.test(text) ||
+    /\bsubmission\b/i.test(post.title || "")
+  );
+}
+
+function hasParticipantSignal(post) {
+  const text = `${post.title || ""}\n${post.content || ""}`;
+  return (
+    postHasTag(post, "aicoo-participant") ||
+    hasMarker(post, MARKERS.participant) ||
+    /(^|\n)\s*(short\s+intro|skills|looking\s+for|role|company)\s*[:：#]/i.test(text) ||
+    /\b(matchmaking|participant|looking for team)\b/i.test(text)
+  );
+}
+
 function mapPostToParticipant(post, slug) {
   const record = extractFirstRecordFromText(post.content, MARKERS.participant);
   if (record) {
@@ -222,11 +272,12 @@ function mapPostToProject(post, slug) {
     description: post.content || "",
     track: post.subsquare ? `s/${post.subsquare}` : "Aicoo Square",
     authors: [author],
-    githubUrl: "",
-    demoUrl: "",
+    githubUrl: labeledUrl(post.content, ["github", "repo", "github repo"]),
+    demoUrl: labeledUrl(post.content, ["live demo", "demo"]),
+    videoUrl: labeledUrl(post.content, ["video demo", "video"]),
     aicooUsage: "",
     projectAgentName: post.agentName || `${post.title} Project Agent`,
-    sharedProjectAgentLink: linkFromText(post.content),
+    sharedProjectAgentLink: labeledUrl(post.content, ["chat with project agent", "project agent"]),
     sourcePostId: post.id,
     createdAt: post.createdAt,
     likeCount: post.likeCount || 0,
@@ -359,7 +410,7 @@ async function createEvent(req, input) {
 async function listParticipants(req, slug) {
   const posts = await listSquarePosts(req, slug);
   return posts
-    .filter((post) => postHasTag(post, "aicoo-participant") || extractFirstRecordFromText(post.content, MARKERS.participant))
+    .filter((post) => hasParticipantSignal(post) && !hasProjectSignal(post))
     .map((post) => mapPostToParticipant(post, slug));
 }
 
@@ -426,7 +477,7 @@ async function createParticipant(req, slug, input) {
 async function listProjects(req, slug) {
   const posts = await listSquarePosts(req, slug);
   return posts
-    .filter((post) => !postHasTag(post, "aicoo-participant"))
+    .filter((post) => hasProjectSignal(post))
     .map((post) => mapPostToProject(post, slug));
 }
 
@@ -444,6 +495,7 @@ async function createProject(req, slug, input) {
     authors: input.authors || [],
     githubUrl: input.githubUrl || "",
     demoUrl: input.demoUrl || "",
+    videoUrl: input.videoUrl || "",
     aicooUsage: input.aicooUsage || "",
     projectAgentName: `${input.projectName} Project Agent`,
     folderId: folder.id,
@@ -467,6 +519,7 @@ async function createProject(req, slug, input) {
       `Track: ${project.track}`,
       `GitHub: ${project.githubUrl}`,
       `Demo: ${project.demoUrl}`,
+      `Video demo: ${project.videoUrl}`,
       "",
       `Built with Aicoo: ${project.aicooUsage}`,
     ].join("\n"),
@@ -486,7 +539,8 @@ async function createProject(req, slug, input) {
       project.authors.length ? `Authors: ${project.authors.join(", ")}` : "",
       project.track ? `Track: ${project.track}` : "",
       project.githubUrl ? `GitHub: ${project.githubUrl}` : "",
-      project.demoUrl ? `Demo: ${project.demoUrl}` : "",
+      project.demoUrl ? `Live demo: ${project.demoUrl}` : "",
+      project.videoUrl ? `Video demo: ${project.videoUrl}` : "",
       project.aicooUsage ? `Built with Aicoo: ${project.aicooUsage}` : "",
       "",
       project.sharedProjectAgentLink ? `Chat with project agent: ${project.sharedProjectAgentLink}` : "",

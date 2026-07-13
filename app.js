@@ -67,6 +67,43 @@ function csv(value) {
     .filter(Boolean);
 }
 
+function firstProfileValue(profile, keys) {
+  for (const key of keys) {
+    const value = profile?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return "";
+}
+
+function currentUserProfile() {
+  const user = state.user || {};
+  const firstName = firstProfileValue(user, ["given_name", "firstName", "first_name"]);
+  const lastName = firstProfileValue(user, ["family_name", "lastName", "last_name"]);
+  return {
+    name: firstProfileValue(user, ["name", "displayName", "username"]) || [firstName, lastName].filter(Boolean).join(" "),
+    role: firstProfileValue(user, ["title", "role", "headline", "jobTitle"]),
+    company: firstProfileValue(user, ["company", "organization", "org", "school"]),
+    timezone: firstProfileValue(user, ["timezone", "timeZone"]) || Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+    email: firstProfileValue(user, ["email", "mail"]),
+  };
+}
+
+function fillField(form, name, value, { overwrite = false } = {}) {
+  const field = form?.elements?.[name];
+  if (!field || !value) return;
+  if (overwrite || !String(field.value || "").trim()) field.value = value;
+}
+
+function prefillRegisterForm({ overwrite = false } = {}) {
+  const profile = currentUserProfile();
+  const name = profile.name || profile.email.split("@")[0] || "";
+  fillField(els.registerForm, "name", name, { overwrite });
+  fillField(els.registerForm, "role", profile.role, { overwrite });
+  fillField(els.registerForm, "company", profile.company, { overwrite });
+  fillField(els.registerForm, "timezone", profile.timezone, { overwrite });
+  fillField(els.registerForm, "agentName", name ? `${name}'s Aicoo Agent` : "", { overwrite });
+}
+
 function setBusy(value) {
   state.busy = value;
   document.querySelectorAll("button").forEach((button) => {
@@ -134,9 +171,22 @@ async function api(path, options = {}) {
   });
   const data = await response.json();
   if (!response.ok || data.ok === false) {
-    throw new Error(data.error || `Request failed: ${response.status}`);
+    const error = new Error(data.error || `Request failed: ${response.status}`);
+    error.status = response.status;
+    error.details = data.details || null;
+    throw error;
   }
   return data;
+}
+
+function handleAuthError(error) {
+  if (error.status === 401 || /invalid access token|unauthorized/i.test(error.message || "")) {
+    localStorage.removeItem("aicoo_token");
+    localStorage.removeItem("aicoo_user");
+    state.connected = false;
+    state.user = null;
+    renderShell();
+  }
 }
 
 async function connectAicoo() {
@@ -237,12 +287,7 @@ async function loadEvents() {
     const data = await api("/api/events");
     state.events = data.events || [];
   } catch (error) {
-    if (error.message.includes("Unauthorized") || error.message.includes("401")) {
-      localStorage.removeItem("aicoo_token");
-      localStorage.removeItem("aicoo_user");
-      state.connected = false;
-      state.user = null;
-    }
+    handleAuthError(error);
     showError(error);
   } finally {
     setBusy(false);
@@ -281,12 +326,17 @@ function eventMatches(event) {
 
 function personMatches(person) {
   const haystack = [person.name, person.role, person.company, person.intro, (person.skills || []).join(" "), (person.lookingFor || []).join(" ")].join(" ");
-  return normalize(haystack).includes(normalize(state.query));
+  const filter =
+    state.peopleFilter === "All" ||
+    (state.peopleFilter === "Looking for team" && person.lookingForTeam) ||
+    normalize(haystack).includes(normalize(state.peopleFilter));
+  return filter && normalize(haystack).includes(normalize(state.query));
 }
 
 function projectMatches(project) {
   const haystack = [project.projectName, project.oneLiner, project.description, project.track, (project.authors || []).join(" ")].join(" ");
-  return normalize(haystack).includes(normalize(state.query));
+  const filter = state.projectFilter === "All" || normalize(haystack).includes(normalize(state.projectFilter));
+  return filter && normalize(haystack).includes(normalize(state.query));
 }
 
 function setPanel(name) {
@@ -480,6 +530,11 @@ function renderProjectDetail() {
     els.projectDetail.innerHTML = `<h2>No project selected</h2><p>Submit a project to create the first project-specific Aicoo agent.</p>`;
     return;
   }
+  const actionButton = (label, href, primary = false) =>
+    href
+      ? `<a class="${primary ? "primary-button" : "ghost-button"} link-button" href="${href}" target="_blank" rel="noreferrer">${label}</a>`
+      : `<button class="${primary ? "primary-button" : "ghost-button"} link-button unavailable" type="button" disabled>${label}</button>`;
+
   els.projectDetail.innerHTML = `
     <span class="tag">${project.track || ""}</span>
     <h2>${project.projectName}</h2>
@@ -491,9 +546,10 @@ function renderProjectDetail() {
     <h3>Authors</h3>
     <div class="tag-row">${tagList(project.authors)}</div>
     <div class="detail-actions">
-      ${project.sharedProjectAgentLink ? `<a class="primary-button link-button" href="${project.sharedProjectAgentLink}" target="_blank" rel="noreferrer">Chat with Project Agent</a>` : ""}
-      ${project.demoUrl ? `<a class="ghost-button link-button" href="${project.demoUrl}" target="_blank" rel="noreferrer">Open Demo</a>` : ""}
-      ${project.githubUrl ? `<a class="ghost-button link-button" href="${project.githubUrl}" target="_blank" rel="noreferrer">GitHub</a>` : ""}
+      ${actionButton("Project Agent", project.sharedProjectAgentLink, true)}
+      ${actionButton("Video Demo", project.videoUrl)}
+      ${actionButton("Live Demo", project.demoUrl)}
+      ${actionButton("GitHub Repo", project.githubUrl)}
     </div>
   `;
 }
@@ -574,7 +630,10 @@ function bindEvents() {
       if (type === "toggle-create-event") els.createEventPanel.classList.toggle("hidden");
       if (type === "open-event") attemptOpenEvent(action.dataset.eventId);
       if (type === "close-access") closeAccessModal();
-      if (type === "toggle-register") els.registerPanel.classList.toggle("hidden");
+      if (type === "toggle-register") {
+        prefillRegisterForm();
+        els.registerPanel.classList.toggle("hidden");
+      }
       if (type === "toggle-submit") els.submitPanel.classList.toggle("hidden");
       if (type === "copy") {
         await navigator.clipboard.writeText(action.dataset.link);
@@ -611,6 +670,24 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll("[data-filter-group='people'] button").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-filter-group='people'] button").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      state.peopleFilter = button.dataset.filter;
+      renderPeople();
+    });
+  });
+
+  document.querySelectorAll("[data-filter-group='projects'] button").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-filter-group='projects'] button").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      state.projectFilter = button.dataset.filter;
+      renderProjects();
+    });
+  });
+
   els.search.addEventListener("input", (event) => {
     state.query = event.target.value;
     if (state.currentView === "events") renderEvents();
@@ -642,6 +719,7 @@ function bindEvents() {
       showToast("Event announcement posted to Aicoo Square");
       await loadEvents();
     } catch (error) {
+      handleAuthError(error);
       showError(error);
     } finally {
       setBusy(false);
@@ -664,6 +742,7 @@ function bindEvents() {
       showToast("Participant card and Aicoo agent link created");
       renderShell();
     } catch (error) {
+      handleAuthError(error);
       showError(error);
     } finally {
       setBusy(false);
@@ -684,6 +763,7 @@ function bindEvents() {
       showToast("Project and project-specific Aicoo agent created");
       renderShell();
     } catch (error) {
+      handleAuthError(error);
       showError(error);
     } finally {
       setBusy(false);

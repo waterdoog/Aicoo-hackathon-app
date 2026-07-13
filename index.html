@@ -122,16 +122,16 @@
                 <h2>Create your participant card</h2>
               </div>
               <div class="form-grid">
-                <label>Name<input name="name" value="Yu Chen" required /></label>
-                <label>Role / Title<input name="role" value="CTO / AI Infra" required /></label>
-                <label>School / Company<input name="company" value="Aicoo" required /></label>
-                <label>Timezone<input name="timezone" value="UTC-7 (PST)" /></label>
+                <label>Name<input name="name" placeholder="Your name" required /></label>
+                <label>Role / Title<input name="role" placeholder="Engineer, designer, founder..." required /></label>
+                <label>School / Company<input name="company" placeholder="School, company, or independent" required /></label>
+                <label>Timezone<input name="timezone" placeholder="UTC-7, GMT+8..." /></label>
               </div>
-              <label>Short intro<textarea name="intro" required>Building agent-to-agent coordination infra to make AI collaboration seamless.</textarea></label>
-              <label>Skills, comma separated<input name="skills" value="Next.js, Agents, Infra, Product" /></label>
-              <label>Looking for<input name="lookingFor" value="Frontend, GTM, Designer" /></label>
+              <label>Short intro<textarea name="intro" placeholder="What are you building, and how can people work with you?" required></textarea></label>
+              <label>Skills, comma separated<input name="skills" placeholder="Next.js, Agents, Design, GTM" /></label>
+              <label>Looking for<input name="lookingFor" placeholder="Frontend, designer, users, teammates" /></label>
               <div class="form-grid">
-                <label>Agent name<input name="agentName" value="Yu's Aicoo COO" /></label>
+                <label>Agent name<input name="agentName" placeholder="Your project or personal agent name" /></label>
                 <label>Meeting preference<select name="meeting"><option>Open to quick calls</option><option>Async first</option><option>Office hours only</option></select></label>
               </div>
               <label class="check-row"><input name="lookingForTeam" type="checkbox" checked /> Looking for teammates</label>
@@ -184,7 +184,8 @@
               </div>
               <div class="form-grid">
                 <label>GitHub<input name="githubUrl" value="https://github.com/frontdeskai" /></label>
-                <label>Demo<input name="demoUrl" value="https://frontdesk.ai" /></label>
+                <label>Live demo<input name="demoUrl" value="https://frontdesk.ai" /></label>
+                <label>Video demo<input name="videoUrl" placeholder="https://youtube.com/..." /></label>
               </div>
               <label>Built with Aicoo<textarea name="aicooUsage">Uses shared agent links, event-specific context, and guest conversations.</textarea></label>
               <button class="primary-button wide" type="submit">Submit Project and Create Agent</button>

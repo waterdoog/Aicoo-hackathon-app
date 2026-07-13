@@ -1,5 +1,29 @@
 const { send, sendError, readBody } = require("../_aicoo");
 
+function firstValue(source, keys) {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return "";
+}
+
+function normalizeUserInfo(data) {
+  const profile = data?.user || data?.profile || data?.data?.user || data?.data || data || {};
+  const firstName = firstValue(profile, ["given_name", "firstName", "first_name"]);
+  const lastName = firstValue(profile, ["family_name", "lastName", "last_name"]);
+  const name = firstValue(profile, ["name", "displayName", "username"]) || [firstName, lastName].filter(Boolean).join(" ");
+  return {
+    id: firstValue(profile, ["sub", "id", "userId"]),
+    name,
+    email: firstValue(profile, ["email", "mail"]),
+    picture: firstValue(profile, ["picture", "avatar", "image", "avatarUrl"]),
+    title: firstValue(profile, ["title", "role", "headline", "jobTitle"]),
+    company: firstValue(profile, ["company", "organization", "org", "school"]),
+    timezone: firstValue(profile, ["timezone", "timeZone"]),
+  };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") return send(res, 405, { ok: false, error: "Method not allowed" });
 
@@ -58,7 +82,7 @@ module.exports = async function handler(req, res) {
 
     let userData = {};
     if (userRes.ok) {
-      userData = await userRes.json();
+      userData = normalizeUserInfo(await userRes.json());
     }
 
     send(res, 200, {

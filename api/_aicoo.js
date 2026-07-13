@@ -1,4 +1,5 @@
-const AICOO_BASE_URL = "https://www.aicoo.io/api/v1";
+const AICOO_OS_BASE_URL = "https://www.aicoo.io/api/v1";
+const AICOO_APP_BASE_URL = "https://www.aicoo.io";
 
 const MARKERS = {
   event: "AICOO_EVENT_RECORD",
@@ -15,7 +16,7 @@ class AicooError extends Error {
 }
 
 function apiKey() {
-  return process.env.PULSE_API_KEY || process.env.AICOO_API_KEY || "";
+  return (process.env.AICOO_API_KEY || process.env.PULSE_API_KEY || "").trim();
 }
 
 function getAuthToken(req) {
@@ -62,11 +63,19 @@ function extractRecords(payload, marker) {
 }
 
 async function aicooFetch(req, path, options = {}) {
+  return authedFetch(req, `${AICOO_OS_BASE_URL}${path}`, options);
+}
+
+async function squareFetch(req, path, options = {}) {
+  return authedFetch(req, `${AICOO_APP_BASE_URL}/api/square${path}`, options);
+}
+
+async function authedFetch(req, url, options = {}) {
   const token = getAuthToken(req);
   const key = token || apiKey();
   if (!key) throw new AicooError("Unauthorized: Missing Aicoo access token.", 401);
 
-  const response = await fetch(`${AICOO_BASE_URL}${path}`, {
+  const response = await fetch(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${key}`,
@@ -110,6 +119,141 @@ function firstId(...values) {
 
 function shareUrl(data) {
   return data?.url || data?.shareUrl || data?.link || data?.shareLink || data?.publicUrl || data?.data?.url || "";
+}
+
+function firstLine(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) || "";
+}
+
+function truncate(value, length) {
+  const text = String(value || "").trim();
+  return text.length > length ? `${text.slice(0, length - 3)}...` : text;
+}
+
+function tokenFromShareUrl(url) {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.searchParams.get("token") || parsed.pathname.split("/").filter(Boolean).pop() || null;
+  } catch {
+    return null;
+  }
+}
+
+function mapSubsquareToEvent(item) {
+  const slug = item.subsquare || slugify(item.name);
+  const name = item.name || `s/${slug}`;
+  return {
+    id: slug,
+    slug,
+    name,
+    type: slug.includes("hack") || slug.includes("event") ? "Hackathon" : "Subsquare",
+    visibility: item.isPrivate ? "private" : "public",
+    accessCode: "",
+    inviteToken: slug,
+    date: item.latestPostAt ? new Date(item.latestPostAt).toISOString().slice(0, 10) : "",
+    description: item.description || "Community-created subsquare.",
+    postCount: item.postCount || 0,
+    peopleCount: item.peopleCount || 0,
+    latestPostAt: item.latestPostAt || "",
+    role: item.role || null,
+    canDelete: Boolean(item.canDelete),
+    squareLink: `${AICOO_APP_BASE_URL}/square?subsquare=${encodeURIComponent(slug)}`,
+  };
+}
+
+function extractFirstRecordFromText(text, marker) {
+  const pattern = new RegExp(`${marker}\\s+([A-Za-z0-9_-]+)`);
+  const match = String(text || "").match(pattern);
+  if (!match) return null;
+  try {
+    return decodeRecord(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function postHasTag(post, tag) {
+  return Array.isArray(post.tags) && post.tags.includes(tag);
+}
+
+function linkFromText(text) {
+  const match = String(text || "").match(/https?:\/\/\S+/);
+  return match ? match[0].replace(/[),.;]+$/, "") : "";
+}
+
+function mapPostToParticipant(post, slug) {
+  const record = extractFirstRecordFromText(post.content, MARKERS.participant);
+  if (record) {
+    return { ...record, sourcePostId: post.id, createdAt: record.createdAt || post.createdAt };
+  }
+  return {
+    id: String(post.id),
+    eventSlug: slug,
+    name: post.ownerName || [post.firstName, post.lastName].filter(Boolean).join(" ") || post.username || "Participant",
+    role: post.headline || "Participant",
+    company: "",
+    timezone: "",
+    intro: post.content || "",
+    skills: post.tags || [],
+    lookingForTeam: false,
+    lookingFor: [],
+    agentName: post.agentName || `${post.ownerName || post.username || "Participant"}'s Aicoo Agent`,
+    sharedAgentLink: linkFromText(post.content),
+    sourcePostId: post.id,
+    createdAt: post.createdAt,
+  };
+}
+
+function mapPostToProject(post, slug) {
+  const record = extractFirstRecordFromText(post.content, MARKERS.project);
+  if (record) {
+    return { ...record, sourcePostId: post.id, createdAt: record.createdAt || post.createdAt };
+  }
+  const author = post.ownerName || [post.firstName, post.lastName].filter(Boolean).join(" ") || post.username || "Aicoo member";
+  return {
+    id: String(post.id),
+    eventSlug: slug,
+    projectName: post.title,
+    oneLiner: truncate(firstLine(post.content), 140),
+    description: post.content || "",
+    track: post.subsquare ? `s/${post.subsquare}` : "Aicoo Square",
+    authors: [author],
+    githubUrl: "",
+    demoUrl: "",
+    aicooUsage: "",
+    projectAgentName: post.agentName || `${post.title} Project Agent`,
+    sharedProjectAgentLink: linkFromText(post.content),
+    sourcePostId: post.id,
+    createdAt: post.createdAt,
+    likeCount: post.likeCount || 0,
+    commentCount: post.commentCount || 0,
+    liked: Boolean(post.liked),
+  };
+}
+
+async function listSquarePosts(req, slug) {
+  const data = await squareFetch(req, `?subsquare=${encodeURIComponent(slug)}&limit=100`);
+  return data.posts || [];
+}
+
+async function publishSquarePost(req, { subsquare, title, content, tags = [], agentLink = "" }) {
+  const body = {
+    subsquare,
+    title,
+    content,
+    tags,
+    agentLinkToken: tokenFromShareUrl(agentLink),
+    reachability: agentLink ? "open" : "closed",
+  };
+  const data = await squareFetch(req, "", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return data.post || data;
 }
 
 async function checkAicooStatus(req) {
@@ -159,16 +303,16 @@ async function grepRecords(req, marker, folderName) {
 }
 
 async function listEvents(req) {
-  const events = await grepRecords(req, MARKERS.event);
-  return events.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const data = await squareFetch(req, "/subsquares");
+  return (data.subsquares || []).map(mapSubsquareToEvent);
 }
 
 async function createEvent(req, input) {
   const slug = slugify(input.slug || input.name);
-  const folderPath = `Aicoo Events/${slug}`;
+  const folderPath = `Aicoo Square/events/${slug}`;
   const folder = await createFolder(req, folderPath);
   const share = await createShare(req, {
-    label: `${input.name} Event Square`,
+    label: `${input.name} Event Context`,
     folderIds: [folder.id],
     requireSignIn: input.visibility === "private",
   });
@@ -193,17 +337,36 @@ async function createEvent(req, input) {
     tags: ["aicoo-event", event.visibility, event.type],
     content: [recordLine(MARKERS.event, event), "", `# ${event.name}`, "", event.description].join("\n"),
   });
+  const post = await publishSquarePost(req, {
+    subsquare: "events",
+    title: `[Event] ${event.name}`,
+    tags: ["aicoo-event", event.type, event.visibility],
+    agentLink: share.url,
+    content: [
+      recordLine(MARKERS.event, event),
+      "",
+      event.description,
+      "",
+      event.squareLink ? `Context agent: ${event.squareLink}` : "",
+      "",
+      "This is an event announcement. Create or manage the matching subsquare in Aicoo Square for the live event feed.",
+    ].join("\n"),
+  });
+  event.sourcePostId = post.id;
   return event;
 }
 
 async function listParticipants(req, slug) {
-  return grepRecords(req, MARKERS.participant, slug);
+  const posts = await listSquarePosts(req, slug);
+  return posts
+    .filter((post) => postHasTag(post, "aicoo-participant") || extractFirstRecordFromText(post.content, MARKERS.participant))
+    .map((post) => mapPostToParticipant(post, slug));
 }
 
 async function createParticipant(req, slug, input) {
   const event = (await listEvents(req)).find((item) => item.slug === slug);
-  if (!event) throw new AicooError("Event not found in Aicoo.", 404);
-  const folder = await createFolder(req, `${event.folderPath}/People/${slugify(input.name)}`);
+  if (!event) throw new AicooError("Subsquare not found in Aicoo Square.", 404);
+  const folder = await createFolder(req, `Aicoo Square/${slug}/People/${slugify(input.name)}`);
   const participant = {
     id: `${slug}-${slugify(input.name)}-${Date.now()}`,
     eventSlug: slug,
@@ -238,17 +401,39 @@ async function createParticipant(req, slug, input) {
       `Looking for: ${participant.lookingFor.join(", ")}`,
     ].join("\n"),
   });
+  const post = await publishSquarePost(req, {
+    subsquare: slug,
+    title: `[Participant] ${participant.name}${participant.role ? ` · ${participant.role}` : ""}`,
+    tags: ["aicoo-participant", "hackathon-participant", ...participant.skills.slice(0, 5)],
+    agentLink: participant.sharedAgentLink,
+    content: [
+      recordLine(MARKERS.participant, participant),
+      "",
+      participant.intro,
+      "",
+      participant.company ? `Company: ${participant.company}` : "",
+      participant.timezone ? `Timezone: ${participant.timezone}` : "",
+      participant.skills.length ? `Skills: ${participant.skills.join(", ")}` : "",
+      participant.lookingFor.length ? `Looking for: ${participant.lookingFor.join(", ")}` : "",
+      "",
+      participant.sharedAgentLink ? `Chat with ${participant.name}'s agent: ${participant.sharedAgentLink}` : "",
+    ].filter(Boolean).join("\n"),
+  });
+  participant.sourcePostId = post.id;
   return participant;
 }
 
 async function listProjects(req, slug) {
-  return grepRecords(req, MARKERS.project, slug);
+  const posts = await listSquarePosts(req, slug);
+  return posts
+    .filter((post) => !postHasTag(post, "aicoo-participant"))
+    .map((post) => mapPostToProject(post, slug));
 }
 
 async function createProject(req, slug, input) {
   const event = (await listEvents(req)).find((item) => item.slug === slug);
-  if (!event) throw new AicooError("Event not found in Aicoo.", 404);
-  const folder = await createFolder(req, `${event.folderPath}/Projects/${slugify(input.projectName)}`);
+  if (!event) throw new AicooError("Subsquare not found in Aicoo Square.", 404);
+  const folder = await createFolder(req, `Aicoo Square/${slug}/Projects/${slugify(input.projectName)}`);
   const project = {
     id: `${slug}-${slugify(input.projectName)}-${Date.now()}`,
     eventSlug: slug,
@@ -286,6 +471,28 @@ async function createProject(req, slug, input) {
       `Built with Aicoo: ${project.aicooUsage}`,
     ].join("\n"),
   });
+  const post = await publishSquarePost(req, {
+    subsquare: slug,
+    title: `[Project] ${project.projectName}`,
+    tags: ["aicoo-project", "hackathon-project", project.track].filter(Boolean),
+    agentLink: project.sharedProjectAgentLink,
+    content: [
+      recordLine(MARKERS.project, project),
+      "",
+      project.oneLiner,
+      "",
+      project.description,
+      "",
+      project.authors.length ? `Authors: ${project.authors.join(", ")}` : "",
+      project.track ? `Track: ${project.track}` : "",
+      project.githubUrl ? `GitHub: ${project.githubUrl}` : "",
+      project.demoUrl ? `Demo: ${project.demoUrl}` : "",
+      project.aicooUsage ? `Built with Aicoo: ${project.aicooUsage}` : "",
+      "",
+      project.sharedProjectAgentLink ? `Chat with project agent: ${project.sharedProjectAgentLink}` : "",
+    ].filter(Boolean).join("\n"),
+  });
+  project.sourcePostId = post.id;
   return project;
 }
 

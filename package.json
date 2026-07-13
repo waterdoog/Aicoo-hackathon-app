@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "check": "node --check app.js && node --check api/_aicoo.js && node --check api/events.js && node --check api/aicoo/status.js && node --check api/events/[slug]/participants.js && node --check api/events/[slug]/projects.js"
+    "check": "node --check app.js && node --check api/_aicoo.js && node --check api/events.js && node --check api/aicoo/status.js && node --check api/auth/config.js && node --check api/auth/token.js && node --check api/events/[slug]/participants.js && node --check api/events/[slug]/projects.js"
   }
 }

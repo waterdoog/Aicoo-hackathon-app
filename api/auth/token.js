@@ -37,15 +37,6 @@ module.exports = async function handler(req, res) {
     });
 
     const tokenData = await tokenRes.json();
-    console.error("Token exchange response:", {
-      status: tokenRes.status,
-      tokenData,
-      sentParams: {
-        clientId,
-        redirectUri,
-        clientSecretSnippet: clientSecret ? clientSecret.substring(0, 4) + "..." : "missing"
-      }
-    });
 
     if (!tokenRes.ok) {
       return send(res, tokenRes.status, {

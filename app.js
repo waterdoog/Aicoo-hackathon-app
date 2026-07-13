@@ -333,10 +333,10 @@ function renderShell() {
     `;
     els.heroEyebrow.textContent = "Aicoo Events Square";
     els.heroTitle.textContent = "Events Square";
-    els.heroDescription.textContent = "Events are stored in Aicoo OS. People and projects create scoped Aicoo agent links.";
+    els.heroDescription.textContent = "Events are Aicoo Square subsquares. People and projects publish Square cards backed by scoped agent context.";
     els.heroMeta.innerHTML = `
       <span>${state.events.length} events</span>
-      <span>Real Aicoo API</span>
+      <span>Aicoo Square API</span>
       <span>No frontend API keys</span>
     `;
     setPanel("events");
@@ -374,7 +374,7 @@ function renderEvents() {
     els.eventsGrid.innerHTML = `
       <div class="empty-state">
         <h3>No events loaded</h3>
-        <p>Create an event square. If you see an Aicoo API error, configure a valid server-side PULSE_API_KEY.</p>
+        <p>No Square subsquares were returned. If you see an Aicoo API error, configure OAuth or a valid AICOO_API_KEY.</p>
       </div>
     `;
     return;
@@ -382,7 +382,7 @@ function renderEvents() {
 
   els.eventsGrid.innerHTML = events
     .map((event) => {
-      const locked = event.visibility === "private" && !state.unlocked.has(event.slug) && !state.unlocked.has(event.inviteToken);
+      const locked = event.visibility === "private" && event.accessCode && !state.unlocked.has(event.slug) && !state.unlocked.has(event.inviteToken);
       return `
         <article class="event-card ${event.visibility}" data-event-id="${event.slug}">
           <div class="card-top">
@@ -538,7 +538,7 @@ function attemptOpenEvent(slug) {
     showToast("Connect Aicoo before entering event squares");
     return;
   }
-  const locked = event.visibility === "private" && !state.unlocked.has(event.slug) && !state.unlocked.has(event.inviteToken);
+  const locked = event.visibility === "private" && event.accessCode && !state.unlocked.has(event.slug) && !state.unlocked.has(event.inviteToken);
   if (locked) {
     openAccessModal(event);
     return;
@@ -637,11 +637,10 @@ function bindEvents() {
     setBusy(true);
     try {
       const body = Object.fromEntries(new FormData(els.createEventForm));
-      const data = await api("/api/events", { method: "POST", body: JSON.stringify(body) });
-      state.events.unshift(data.event);
+      await api("/api/events", { method: "POST", body: JSON.stringify(body) });
       els.createEventPanel.classList.add("hidden");
-      showToast("Event square created in Aicoo");
-      renderShell();
+      showToast("Event announcement posted to Aicoo Square");
+      await loadEvents();
     } catch (error) {
       showError(error);
     } finally {

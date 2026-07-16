@@ -3,7 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Aicoo Events Square</title>
+    <title>Aicoo Events Square — Hackathons with agent-backed cards</title>
+    <meta name="description" content="Register for hackathons, publish your Aicoo agent card, submit projects, and chat with any participant's AI agent." />
+    <meta property="og:title" content="Aicoo Events Square" />
+    <meta property="og:description" content="Hackathon events where every participant and project comes with a live Aicoo agent you can talk to." />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#03070d" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2303070d'/%3E%3Cpath d='M16 6 26 26H6L16 6Z' fill='none' stroke='%2300e5ff' stroke-width='2.4'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://api.dicebear.com" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -26,8 +32,9 @@
           <div class="mini-orbit" aria-hidden="true"></div>
         </div>
 
-        <button class="profile-button" type="button" data-action="signin">
-          <img src="https://api.dicebear.com/9.x/pixel-art/png?seed=Yu" alt="" />
+        <button class="profile-button" type="button" data-action="signin" data-allow-during-busy="true">
+          <img id="sidebarAvatar" src="" alt="" hidden />
+          <span class="avatar-fallback" id="sidebarAvatarFallback" aria-hidden="true">◍</span>
           <span>
             <strong id="sidebarUserName">Sign in required</strong>
             <small id="sidebarUserHandle">Aicoo identity</small>
@@ -39,12 +46,12 @@
         <header class="event-hero" id="events">
           <div class="topbar">
             <label class="search-wrap">
-              <span>⌕</span>
+              <span aria-hidden="true">⌕</span>
               <input id="globalSearch" type="search" placeholder="Search events, people, skills, projects..." />
             </label>
             <div class="top-actions">
-              <button class="ghost-button hidden" id="backToEvents" type="button" data-action="back-events">All Events</button>
-              <button class="primary-button" id="authButton" type="button" data-action="signin">Sign in with Aicoo</button>
+              <button class="ghost-button hidden" id="backToEvents" type="button" data-action="back-events" data-allow-during-busy="true">← All Events</button>
+              <button class="primary-button" id="authButton" type="button" data-action="signin" data-allow-during-busy="true">Sign in with Aicoo</button>
             </div>
           </div>
 
@@ -52,7 +59,7 @@
             <div class="hero-copy">
               <p class="eyebrow" id="heroEyebrow">Aicoo Events Square</p>
               <h1 id="heroTitle">Events Square</h1>
-              <p id="heroDescription">Discover Aicoo Square subsquares, enter a hackathon feed, and publish agent-backed cards after signing in with Aicoo.</p>
+              <p id="heroDescription">Join a hackathon, publish your agent-backed card, and talk to any participant or project through their Aicoo agent.</p>
               <div class="hero-meta" id="heroMeta"></div>
             </div>
             <div class="city-asset" aria-hidden="true">
@@ -64,11 +71,11 @@
         <section class="view active" id="eventsView" data-view-panel="events">
           <div class="section-head">
             <div>
-              <h2>Public and Private Events</h2>
-              <p>Sign in to enter a Square event. Aicoo OAuth provides user context, roles, and permissions.</p>
+              <h2>Events</h2>
+              <p>Public and private hackathons running on Aicoo Square. Browse freely — sign in to register or submit.</p>
             </div>
             <div class="section-actions">
-              <div class="segmented" data-filter-group="events">
+              <div class="segmented" data-filter-group="events" role="group" aria-label="Filter events">
                 <button class="active" type="button" data-filter="All">All</button>
                 <button type="button" data-filter="public">Public</button>
                 <button type="button" data-filter="private">Private</button>
@@ -77,21 +84,22 @@
             </div>
           </div>
           <div class="inline-form hidden" id="createEventPanel">
-            <form class="data-form" id="createEventForm">
+            <form class="data-form" id="createEventForm" novalidate>
               <div class="form-heading">
                 <p class="eyebrow">Aicoo Square</p>
-                <h2>Announce event</h2>
+                <h2>Create an event</h2>
+                <p>Announces the event on Aicoo Square and opens a live feed for participants and projects. Published under your Aicoo account.</p>
               </div>
               <div class="form-grid">
-                <label>Event name<input name="name" value="VibeHack 2025" required /></label>
-                <label>Type<input name="type" value="Hackathon" required /></label>
-                <label>Slug<input name="slug" value="vibehack-2025" required /></label>
-                <label>Date<input name="date" value="May 30 - June 1, 2025" /></label>
-                <label>Visibility<select name="visibility"><option>public</option><option>private</option></select></label>
-                <label>Private code<input name="accessCode" value="VIBE2025" /></label>
+                <label>Event name<input name="name" placeholder="e.g. SEA Hack 2026" required maxlength="120" /></label>
+                <label>Type<input name="type" placeholder="Hackathon" maxlength="40" /></label>
+                <label>URL slug<input name="slug" placeholder="sea-hack-2026" pattern="[a-z0-9-]+" maxlength="60" /></label>
+                <label>Date<input name="date" placeholder="Aug 14 – 16, 2026" maxlength="80" /></label>
+                <label>Visibility<select name="visibility"><option value="public">Public</option><option value="private">Private</option></select></label>
+                <label>Access code <span class="label-hint">private events only</span><input name="accessCode" placeholder="Shared with invitees" maxlength="60" /></label>
               </div>
-              <label>Description<textarea name="description" required>Build the future with AI agents across people, projects, and shared event context.</textarea></label>
-              <button class="primary-button wide" type="submit">Create in Aicoo</button>
+              <label>Description<textarea name="description" placeholder="What is this event about, who should join, and what should they build?" required maxlength="2000"></textarea></label>
+              <button class="primary-button wide" type="submit" data-busy-label="Creating event...">Create Event</button>
             </form>
           </div>
           <div class="events-grid" id="eventsGrid" aria-live="polite"></div>
@@ -101,53 +109,55 @@
           <div class="section-head">
             <div>
               <h2>People</h2>
-              <p>Participant agent cards published to this Square event.</p>
+              <p>Every card is backed by a live Aicoo agent — open one and start talking.</p>
             </div>
             <div class="section-actions">
-              <div class="segmented" data-filter-group="people">
+              <div class="segmented" data-filter-group="people" role="group" aria-label="Filter people">
                 <button class="active" type="button" data-filter="All">All</button>
                 <button type="button" data-filter="Looking for team">Looking for team</button>
                 <button type="button" data-filter="Engineer">Engineer</button>
                 <button type="button" data-filter="Designer">Designer</button>
                 <button type="button" data-filter="GTM">GTM</button>
               </div>
-              <button class="primary-button" type="button" data-action="toggle-register">Register</button>
+              <button class="primary-button" type="button" data-action="toggle-register" id="registerToggle">Register</button>
             </div>
           </div>
 
           <div class="inline-form hidden" id="registerPanel">
-            <form class="data-form" id="registerForm">
+            <form class="data-form" id="registerForm" novalidate>
               <div class="form-heading">
                 <p class="eyebrow">People</p>
-                <h2>Create your participant card</h2>
+                <h2 id="registerFormTitle">Create your participant card</h2>
+                <p>Your card is published to this event's public feed with a share link to your Aicoo agent. Submitting again updates your existing card.</p>
               </div>
               <div class="form-grid">
-                <label>Name<input name="name" placeholder="Your name" required /></label>
-                <label>Role / Title<input name="role" placeholder="Engineer, designer, founder..." required /></label>
-                <label>School / Company<input name="company" placeholder="School, company, or independent" required /></label>
-                <label>Timezone<input name="timezone" placeholder="UTC-7, GMT+8..." /></label>
+                <label>Name<input name="name" placeholder="Your name" required maxlength="80" /></label>
+                <label>Role / Title<input name="role" placeholder="Engineer, designer, founder..." required maxlength="80" /></label>
+                <label>School / Company<input name="company" placeholder="School, company, or independent" maxlength="80" /></label>
+                <label>Timezone<input name="timezone" placeholder="UTC+8, PT, CET..." maxlength="40" /></label>
               </div>
-              <label>Short intro<textarea name="intro" placeholder="What are you building, and how can people work with you?" required></textarea></label>
-              <label>Skills, comma separated<input name="skills" placeholder="Next.js, Agents, Design, GTM" /></label>
-              <label>Looking for<input name="lookingFor" placeholder="Frontend, designer, users, teammates" /></label>
+              <label>Short intro<textarea name="intro" placeholder="What are you building, and how can people work with you?" required maxlength="1200"></textarea></label>
               <div class="form-grid">
-                <label>Agent name<input name="agentName" placeholder="Your project or personal agent name" /></label>
-                <label>Meeting preference<select name="meeting"><option>Open to quick calls</option><option>Async first</option><option>Office hours only</option></select></label>
+                <label>Skills <span class="label-hint">comma separated</span><input name="skills" placeholder="Next.js, Agents, Design, GTM" /></label>
+                <label>Looking for <span class="label-hint">comma separated</span><input name="lookingFor" placeholder="Frontend, designer, users, teammates" /></label>
               </div>
-              <label class="check-row"><input name="lookingForTeam" type="checkbox" checked /> Looking for teammates</label>
-              <button class="primary-button wide" type="submit">Generate My Agent Card</button>
+              <label>Agent name <span class="label-hint">optional</span><input name="agentName" placeholder="Defaults to “Your name's Aicoo Agent”" maxlength="60" /></label>
+              <label class="check-row"><input name="lookingForTeam" type="checkbox" checked /> I'm looking for teammates</label>
+              <label class="check-row"><input name="allowBooking" type="checkbox" /> Let visitors see my availability and book meetings through my agent</label>
+              <button class="primary-button wide" type="submit" data-busy-label="Publishing your card...">Publish My Agent Card</button>
             </form>
             <div class="success-card hidden" id="registerSuccess">
-              <div class="success-mark">✓</div>
-              <h3>Your agent card is live</h3>
-              <p>The card was posted to this Square event.</p>
+              <div class="success-mark" aria-hidden="true">✓</div>
+              <h3 id="registerSuccessTitle">Your agent card is live</h3>
+              <p>Anyone at this event can now chat with your agent.</p>
               <div class="generated-card" id="generatedParticipant"></div>
+              <div class="detail-actions" id="registerSuccessActions"></div>
             </div>
           </div>
 
           <div class="content-grid">
             <div class="card-grid" id="peopleGrid" aria-live="polite"></div>
-            <aside class="detail-panel" id="participantDetail"></aside>
+            <aside class="detail-panel" id="participantDetail" aria-label="Participant details"></aside>
           </div>
         </section>
 
@@ -155,10 +165,10 @@
           <div class="section-head">
             <div>
               <h2>Projects</h2>
-              <p>Project submissions with project-specific Aicoo agents.</p>
+              <p>Submissions with their own project agent — ask it anything about the build.</p>
             </div>
             <div class="section-actions">
-              <div class="segmented" data-filter-group="projects">
+              <div class="segmented" data-filter-group="projects" role="group" aria-label="Filter projects">
                 <button class="active" type="button" data-filter="All">All</button>
                 <button type="button" data-filter="AI Agents">AI Agents</button>
                 <button type="button" data-filter="Web3">Web3</button>
@@ -170,67 +180,52 @@
           </div>
 
           <div class="inline-form hidden" id="submitPanel">
-            <form class="data-form" id="submitForm">
+            <form class="data-form" id="submitForm" novalidate>
               <div class="form-heading">
                 <p class="eyebrow">Projects</p>
                 <h2>Submit your project</h2>
+                <p>Publishes your submission to the event feed with a dedicated project agent. Re-submitting the same project name updates it.</p>
               </div>
-              <label>Project name<input name="projectName" value="Frontdesk AI" required /></label>
-              <label>One-line intro<input name="oneLiner" value="Aicoo-powered public front desk for bookings and agent chat." required /></label>
-              <label>Description<textarea name="description" required>Frontdesk AI helps businesses answer questions, capture leads, and route meetings with an Aicoo shared agent.</textarea></label>
+              <label>Project name<input name="projectName" placeholder="Your project name" required maxlength="120" /></label>
+              <label>One-line intro<input name="oneLiner" placeholder="What does it do, in one sentence?" required maxlength="180" /></label>
+              <label>Description<textarea name="description" placeholder="The problem, your approach, what works today, and what's next." required maxlength="4000"></textarea></label>
               <div class="form-grid">
-                <label>Track<select name="track"><option>AI Agents</option><option>Web3</option><option>Productivity</option><option>Design</option></select></label>
-                <label>Authors<input name="authors" value="Yu Chen, Alice Wang, Ben Lee" /></label>
+                <label>Track<select name="track"><option>AI Agents</option><option>Web3</option><option>Productivity</option><option>Design</option><option>Other</option></select></label>
+                <label>Authors <span class="label-hint">comma separated</span><input name="authors" placeholder="Defaults to your Aicoo name" /></label>
               </div>
-              <div class="form-grid">
-                <label>GitHub<input name="githubUrl" value="https://github.com/frontdeskai" /></label>
-                <label>Live demo<input name="demoUrl" value="https://frontdesk.ai" /></label>
-                <label>Video demo<input name="videoUrl" placeholder="https://youtube.com/..." /></label>
+              <div class="form-grid three">
+                <label>GitHub <span class="label-hint">optional</span><input name="githubUrl" type="url" placeholder="https://github.com/..." /></label>
+                <label>Live demo <span class="label-hint">optional</span><input name="demoUrl" type="url" placeholder="https://..." /></label>
+                <label>Video demo <span class="label-hint">optional</span><input name="videoUrl" type="url" placeholder="https://youtube.com/..." /></label>
               </div>
-              <label>Built with Aicoo<textarea name="aicooUsage">Uses shared agent links, event-specific context, and guest conversations.</textarea></label>
-              <button class="primary-button wide" type="submit">Submit Project and Create Agent</button>
+              <label>Built with Aicoo <span class="label-hint">optional</span><textarea name="aicooUsage" placeholder="How does your project use Aicoo? Agents, share links, event context..."></textarea></label>
+              <button class="primary-button wide" type="submit" data-busy-label="Submitting project...">Submit Project & Create Agent</button>
             </form>
             <div class="success-card hidden" id="submitSuccess">
-              <div class="success-mark">✓</div>
-              <h3>Project published</h3>
-              <p>A project-specific Aicoo agent was generated for this submission.</p>
+              <div class="success-mark" aria-hidden="true">✓</div>
+              <h3 id="submitSuccessTitle">Project published</h3>
+              <p>Your submission is live with its own project agent.</p>
               <div class="generated-card" id="generatedSubmission"></div>
+              <div class="detail-actions" id="submitSuccessActions"></div>
             </div>
           </div>
 
           <div class="content-grid">
             <div class="submission-grid" id="projectGrid" aria-live="polite"></div>
-            <aside class="detail-panel" id="projectDetail"></aside>
+            <aside class="detail-panel" id="projectDetail" aria-label="Project details"></aside>
           </div>
         </section>
       </main>
-
-      <aside class="phone-preview" aria-label="Mobile app preview">
-        <div class="phone">
-          <div class="phone-status">9:41</div>
-          <div class="phone-screen">
-            <h3 id="phoneTitle">Events Square</h3>
-            <div class="phone-tabs" id="phoneTabs">
-              <span class="active">Events</span>
-              <span>People</span>
-              <span>Projects</span>
-            </div>
-            <div class="phone-list" id="phonePeople"></div>
-            <button class="primary-button wide" type="button" data-action="signin">Sign in</button>
-          </div>
-          <div class="phone-nav"><span>Events</span><span>People</span><span>Projects</span><span>Me</span></div>
-        </div>
-      </aside>
     </div>
 
     <div class="access-modal hidden" id="accessModal" role="dialog" aria-modal="true" aria-labelledby="accessTitle">
       <form class="access-card" id="accessForm">
-        <button class="modal-close" type="button" data-action="close-access">×</button>
+        <button class="modal-close" type="button" data-action="close-access" aria-label="Close">×</button>
         <p class="eyebrow">Private Event</p>
         <h2 id="accessTitle">Enter access code</h2>
         <p id="accessCopy">This event is private. Use an invite link or enter the event code.</p>
-        <label>Access code<input id="accessCodeInput" name="accessCode" placeholder="Try VIBE2025" required /></label>
-        <button class="primary-button wide" type="submit">Unlock Event</button>
+        <label>Access code<input id="accessCodeInput" name="accessCode" placeholder="Event access code" autocomplete="off" required /></label>
+        <button class="primary-button wide" type="submit" data-busy-label="Checking...">Unlock Event</button>
       </form>
     </div>
 

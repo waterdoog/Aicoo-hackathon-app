@@ -1,10 +1,10 @@
-const { createEvent, listEvents, readBody, send, sendError } = require("./_aicoo");
+const { createEvent, listEvents, readBody, sanitizeEvent, send, sendError } = require("./_aicoo");
 
 module.exports = async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const events = await listEvents(req);
-      return send(res, 200, { ok: true, events });
+      return send(res, 200, { ok: true, events: events.map(sanitizeEvent) });
     }
     if (req.method === "POST") {
       const body = await readBody(req);

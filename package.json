@@ -6,7 +6,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "check": "node --check app.js && node --check lib/db.js && node --check api/_aicoo.js && node --check api/events.js && node --check api/aicoo/status.js && node --check api/auth/config.js && node --check api/auth/token.js && node --check api/events/[slug]/participants.js && node --check api/events/[slug]/projects.js"
+    "check": "node --check app.js && node --check lib/db.js && node --check api/_aicoo.js && node --check api/events.js && node --check api/aicoo/status.js && node --check api/auth/_oauth.js && node --check api/auth/config.js && node --check api/auth/token.js && node --check api/auth/refresh.js && node --check api/auth/me.js && node --check api/events/[slug]/participants.js && node --check api/events/[slug]/projects.js && node --check api/events/[slug]/unlock.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0"

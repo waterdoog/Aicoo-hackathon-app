@@ -9,8 +9,8 @@ module.exports = async function handler(req, res) {
     }
     if (req.method === "POST") {
       const body = await readBody(req);
-      const participant = await createParticipant(req, slug, body);
-      return send(res, 201, { ok: true, participant });
+      const { participant, updated } = await createParticipant(req, slug, body);
+      return send(res, updated ? 200 : 201, { ok: true, participant, updated });
     }
     return send(res, 405, { ok: false, error: "Method not allowed" });
   } catch (error) {

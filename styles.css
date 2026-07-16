@@ -869,6 +869,234 @@ textarea {
   box-shadow: none;
 }
 
+/* ---------- production polish ---------- */
+
+.form-heading {
+  margin-bottom: 1rem;
+}
+
+.form-heading p:last-child {
+  margin-bottom: 0;
+  font-size: 0.88rem;
+}
+
+.label-hint {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 400;
+}
+
+.form-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: rgba(0, 229, 255, 0.65);
+  box-shadow: 0 0 0 2px rgba(0, 87, 255, 0.25);
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(0, 229, 255, 0.65);
+  outline-offset: 2px;
+}
+
+.primary-button.is-busy::after {
+  content: "";
+  display: inline-block;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-left: 0.5rem;
+  border: 2px solid rgba(234, 247, 255, 0.4);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  vertical-align: -0.15rem;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.avatar-fallback {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(0, 229, 255, 0.5);
+  border-radius: 50%;
+  background: rgba(0, 87, 255, 0.18);
+  color: var(--cyan);
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.badge-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.agent-badge,
+.mine-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.24rem 0.5rem;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.agent-badge {
+  border: 1px solid rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.1);
+  color: var(--cyan);
+}
+
+.mine-badge {
+  border: 1px solid rgba(46, 232, 139, 0.5);
+  background: rgba(46, 232, 139, 0.1);
+  color: var(--green);
+}
+
+.card-intro,
+.event-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.detail-intro {
+  margin-top: 0.75rem;
+}
+
+.detail-description {
+  white-space: pre-line;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.detail-empty {
+  display: grid;
+  place-content: center;
+  min-height: 16rem;
+  text-align: center;
+}
+
+.detail-meta {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.muted-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.meta-link {
+  border: 1px solid rgba(127, 168, 201, 0.27);
+  border-radius: 5px;
+  background: rgba(7, 17, 31, 0.7);
+  color: var(--cyan);
+  padding: 0.42rem 0.62rem;
+  font-size: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.meta-link:hover {
+  border-color: rgba(0, 229, 255, 0.62);
+}
+
+.visibility.locked {
+  color: var(--amber);
+}
+
+.tag-row.centered {
+  justify-content: center;
+}
+
+.author-names {
+  margin-left: 0.85rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.generated-card .avatar {
+  margin: 0 auto 0.6rem;
+}
+
+.error-state {
+  border-color: rgba(255, 106, 106, 0.4);
+}
+
+.error-state h3 {
+  color: #ff8f8f;
+}
+
+.error-state .ghost-button {
+  margin-top: 0.5rem;
+}
+
+.skeleton-card {
+  min-height: 14rem;
+  border: 1px solid rgba(127, 168, 201, 0.14);
+  border-radius: 8px;
+  background: rgba(9, 23, 42, 0.55);
+  padding: 1rem;
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+}
+
+.skeleton-card div {
+  height: 1rem;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(127, 168, 201, 0.1) 25%, rgba(127, 168, 201, 0.22) 50%, rgba(127, 168, 201, 0.1) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+.skeleton-card div:first-child {
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 8px;
+}
+
+.skeleton-card div:nth-child(2) {
+  width: 65%;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+.toast.success {
+  border-color: rgba(46, 232, 139, 0.55);
+}
+
+.toast.error {
+  border-color: rgba(255, 106, 106, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-card div,
+  .primary-button.is-busy::after {
+    animation: none;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-columns: 11rem minmax(0, 1fr);
@@ -937,13 +1165,14 @@ textarea {
   }
 
   .city-asset {
-    margin-top: 1.2rem;
+    display: none;
   }
 
   .card-grid,
   .events-grid,
   .submission-grid,
-  .form-grid {
+  .form-grid,
+  .form-grid.three {
     grid-template-columns: 1fr;
   }
 
